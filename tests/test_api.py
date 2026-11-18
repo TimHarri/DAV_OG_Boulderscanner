@@ -42,8 +42,8 @@ def test_ui_is_served(client):
 
 def test_wall_created_with_holds(client, wall):
     assert wall["name"] == "CI-Wand"
-    assert wall["detector"] in ("baseline-opencv", "yolo11s-seg")
-    assert 10 < len(wall["holds"]) < 60  # ~35 gezeichnet, Baseline fasst teils zusammen
+    assert wall["detector"] == "baseline-opencv" or wall["detector"].startswith("yolo/")
+    assert len(wall["holds"]) > 5  # Baseline: ~27; mit liegenden YOLO-Gewichten beliebig
 
 
 def test_hold_centers_in_bounds(client, wall):

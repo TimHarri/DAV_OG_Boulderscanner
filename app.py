@@ -20,7 +20,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from pipeline import OUT_SIZE, annotate, detect_baseline, detect_yolo, rectify
+from pipeline import (OUT_SIZE, annotate, detect_baseline, detect_yolo,
+                      find_weights, rectify)
 
 DATA = Path(os.environ.get("BOULDER_DATA", "data"))
 DATA.mkdir(parents=True, exist_ok=True)
@@ -119,10 +120,9 @@ async def create_wall(
 
     rect = rectify(arr, pts)
 
-    import pathlib
-    weights = pathlib.Path(__file__).parent / "holds_yolo11s-seg.pt"
-    holds = detect_yolo(rect, weights)
-    detector = "yolo11s-seg"
+    weights = find_weights(Path(__file__).parent)
+    holds = detect_yolo(rect, weights) if weights else None
+    detector = f"yolo/{weights.name}" if holds is not None else "baseline-opencv"
     if holds is None:
         holds = detect_baseline(rect)
         detector = "baseline-opencv"
