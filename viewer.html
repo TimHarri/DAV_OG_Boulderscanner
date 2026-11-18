@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Boulder P0 Spike - Wand-Viewer</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #1e1e1e; color: #eee; margin: 0; padding: 16px; }
+  h1 { font-size: 18px; } #bar { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+  button { padding: 6px 14px; border: 0; border-radius: 6px; cursor: pointer; }
+  #export { background: #4caf50; } #reset { background: #666; color: #fff; }
+  canvas { border: 1px solid #555; cursor: crosshair; max-width: 100%; }
+  #status { color: #aaa; }
+</style>
+</head>
+<body>
+<h1>Boulder P0 Spike — Griffe anklicken (Rolle wechselt: Start → Hand → Fuß → Top → aus)</h1>
+<div id="bar">
+  <button id="export">Problem exportieren</button>
+  <button id="reset">Zurücksetzen</button>
+  <span id="status">lade…</span>
+</div>
+<canvas id="cv"></canvas>
+<script>
+const ROLE_CYCLE = [null, "start", "hand", "foot", "top"];
+const ROLE_COLOR = { start: "#00c8ff", hand: "#00c800", foot: "#ff9600", top: "#ff0000", null: "#ffffff" };
+let data = null, img = new Image(), scale = 1;
+
+fetch("holds.json").then(r => r.json()).then(d => {
+  data = d;
+  img.onload = () => {
+    const cv = document.getElementById("cv");
+    scale = Math.min(1, 900 / img.width);
+    cv.width = img.width * scale; cv.height = img.height * scale;
+    draw();
+    document.getElementById("status").textContent =
+      data.holds.length + " Griffe (" + data.detector + ")";
+  };
+  img.src = d.image;
+});
+
+function draw() {
+  const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  for (const h of data.holds) {
+    ctx.beginPath();
+    h.polygon.forEach(([x, y], i) => i ? ctx.lineTo(x * scale, y * scale)
+                                        : ctx.moveTo(x * scale, y * scale));
+    ctx.closePath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = ROLE_COLOR[h.role];
+    ctx.stroke();
+    if (h.role) {
+      ctx.fillStyle = ROLE_COLOR[h.role] + "55";
+      ctx.fill();
+      ctx.font = "12px sans-serif";
+      ctx.fillText(h.role, h.center[0] * scale + 6, h.center[1] * scale - 6);
+    }
+  }
+}
+
+document.getElementById("cv").addEventListener("click", e => {
+  const r = e.target.getBoundingClientRect();
+  const x = (e.clientX - r.left) / scale, y = (e.clientY - r.top) / scale;
+  let best = null, bestD = 1e9;
+  for (const h of data.holds) {
+    const d = (h.center[0] - x) ** 2 + (h.center[1] - y) ** 2;
+    if (d < bestD) { bestD = d; best = h; }
+  }
+  if (best && bestD < 60 ** 2) {
+    best.role = ROLE_CYCLE[(ROLE_CYCLE.indexOf(best.role) + 1) % ROLE_CYCLE.length];
+    draw();
+  }
+});
+
+document.getElementById("export").onclick = () => {
+  const holds = data.holds.filter(h => h.role);
+  const problem = {
+    name: prompt("Name des Boulders:", "Mein erster Boulder") || "unbenannt",
+    wall: data.image,
+    moves: holds.map((h, i) => ({ order: i + 1, hold_id: h.id,
+                                  role: h.role, color: h.color })),
+  };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(problem, null, 2)],
+                                        { type: "application/json" }));
+  a.download = "problem.json"; a.click();
+};
+
+document.getElementById("reset").onclick = () => {
+  data.holds.forEach(h => h.role = null);
+  draw();
+};
+</script>
+</body>
+</html>
