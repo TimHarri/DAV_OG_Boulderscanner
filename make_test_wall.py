@@ -10,13 +10,9 @@ COLORS = {
 }
 
 
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--out", default="test_wall.jpg")
-    p.add_argument("--holds", type=int, default=35)
-    args = p.parse_args()
-
-    rng = np.random.default_rng(7)
+def build_wall(out: str = "test_wall.jpg", holds: int = 35, seed: int = 7) -> str:
+    """Erzeugt die Testwand und gibt den Dateipfad zurueck (importierbar fuer Tests)."""
+    rng = np.random.default_rng(seed)
     img = np.full((1600, 1200, 3), 110, np.uint8)
     noise = rng.normal(0, 9, img.shape).astype(np.int16)
     img = np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
@@ -26,7 +22,7 @@ def main() -> None:
         cv2.line(img, (0, y), (1200, y + rng.integers(-60, 60)), (100, 100, 100), 2)
 
     names = list(COLORS)
-    for _ in range(args.holds):
+    for _ in range(holds):
         cx, cy = int(rng.integers(70, 1130)), int(rng.integers(70, 1530))
         ax, ay = int(rng.integers(22, 55)), int(rng.integers(18, 48))
         angle = int(rng.integers(0, 180))
@@ -40,7 +36,16 @@ def main() -> None:
         pts = np.array([[x, y], [x + 160, y + 20], [x + 140, y + 140], [x - 10, y + 120]])
         cv2.fillPoly(img, [pts], (95, 95, 95))
 
-    cv2.imwrite(args.out, img)
+    cv2.imwrite(out, img)
+    return out
+
+
+def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--out", default="test_wall.jpg")
+    p.add_argument("--holds", type=int, default=35)
+    args = p.parse_args()
+    build_wall(args.out, args.holds)
     print(f"OK: {args.out} (Ecken fuer Homographie: 0,0 1200,0 1200,1600 0,1600)")
 
 

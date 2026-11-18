@@ -8,6 +8,7 @@ Docs:   http://localhost:8000/docs
 UI:     http://localhost:8000/
 """
 import json
+import os
 import sqlite3
 import uuid
 from pathlib import Path
@@ -21,8 +22,8 @@ from pydantic import BaseModel
 
 from pipeline import OUT_SIZE, annotate, detect_baseline, detect_yolo, rectify
 
-DATA = Path("data")
-DATA.mkdir(exist_ok=True)
+DATA = Path(os.environ.get("BOULDER_DATA", "data"))
+DATA.mkdir(parents=True, exist_ok=True)
 DB = DATA / "boulder.db"
 
 app = FastAPI(title="Boulderscanner MVP")
@@ -64,7 +65,7 @@ def save_holds(conn: sqlite3.Connection, wall_id: str, holds: list[dict]) -> Non
 # ---------- Schemas ----------
 
 class HoldPatch(BaseModel):
-    role: str | None = None  # start|hand|foot|top|null
+    role: str | None = None  # start|hand|foot|top|null (null = Rolle entfernen)
     color: str | None = None
     manual: bool | None = None
     polygon: list[list[int]] | None = None  # nur bei neuen/manuellen Holds
@@ -172,9 +173,12 @@ def patch_hold(wall_id: str, hold_id: int, patch: HoldPatch) -> dict:
                       "confidence": 1.0, "color": patch.color or "unbekannt",
                       "role": None}
             holds.append(target)
-        if patch.role is not None and patch.role not in ("start", "hand", "foot", "top", None):
-            raise HTTPException(400, "role: start|hand|foot|top|null")
-        for k in ("role", "color", "manual"):
+        # "role" darf explizit null sein (Rolle loeschen) -> model_fields_set nutzen
+        if "role" in patch.model_fields_set:
+            if patch.role not in (None, "start", "hand", "foot", "top"):
+                raise HTTPException(400, "role: start|hand|foot|top|null")
+            target["role"] = patch.role
+        for k in ("color", "manual"):
             if getattr(patch, k) is not None:
                 target[k] = getattr(patch, k)
         if patch.polygon is not None:
