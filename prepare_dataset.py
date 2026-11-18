@@ -70,7 +70,10 @@ def merge(sources: list[str], out: str, val_fraction: float = VAL_FRACTION) -> d
     return {"total": len(pairs), **counts, "classes": names}
 
 
-def download_roboflow(slug: str, out: str) -> None:
+def download_roboflow(slug: str, out: str, version: int | None = None,
+                      fmt: str = "yolov11") -> None:
+    """Laedt einen Universe-Datensatz. fmt: 'yolov11' (Boxen) oder
+    'yolov11-seg' (Polygone, fuer --task segment)."""
     try:
         from roboflow import Roboflow
     except ImportError:
@@ -82,7 +85,8 @@ def download_roboflow(slug: str, out: str) -> None:
         raise SystemExit("ROBOFLOW_API_KEY ist nicht gesetzt "
                          "(Roboflow-Account -> Settings -> API Key)")
     project = Roboflow(api_key=key).workspace().project(slug.split("/")[-1])
-    project.version(1).download("yolov11", location=out)
+    v = project.version(version) if version else project.versions()[0]["version"]
+    v.download(fmt, location=out)
     print(f"OK: {slug} -> {out}/")
 
 
@@ -94,10 +98,15 @@ if __name__ == "__main__":
     p.add_argument("--from-roboflow", metavar="WORKSPACE/DATASET",
                    help="Datensatz von Roboflow Universe laden (kostet nur einen "
                         "kostenlosen Account, dazu ROBOFLOW_API_KEY)")
+    p.add_argument("--version", type=int, default=None,
+                   help="Roboflow-Datensatz-Version (ohne: neueste)")
+    p.add_argument("--format", default="yolov11", choices=["yolov11", "yolov11-seg"],
+                   help="Exportformat: yolov11 = Boxen (--task detect), "
+                        "yolov11-seg = Polygone (--task segment)")
     args = p.parse_args()
 
     if args.from_roboflow:
-        download_roboflow(args.from_roboflow, args.out)
+        download_roboflow(args.from_roboflow, args.out, args.version, args.format)
     if not args.sources and args.from_roboflow:
         print("Nur Download - zum Zusammenfuehren weitere Aufrufe mit Quellen starten.")
     else:
