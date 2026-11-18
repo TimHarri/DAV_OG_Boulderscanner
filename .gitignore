@@ -5,3 +5,7 @@ out/
 out_*/
 *.jpg
 *.pt
+
+dataset_*/
+runs/
+.pytest-data/
