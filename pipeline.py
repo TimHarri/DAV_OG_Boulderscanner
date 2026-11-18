@@ -89,6 +89,16 @@ def detect_baseline(rect: np.ndarray) -> list[dict]:
     return holds
 
 
+def find_weights(base_dir: Path | None = None) -> Path | None:
+    """Sucht trainierte Gewichte (Segmentierung oder Detektion)."""
+    base = base_dir or Path(__file__).resolve().parent
+    for name in ("holds_yolo11s-seg.pt", "holds_yolo11s.pt"):
+        cand = base / name
+        if cand.exists():
+            return cand
+    return None
+
+
 def detect_yolo(rect: np.ndarray, weights: Path) -> list[dict] | None:
     try:
         from ultralytics import YOLO
@@ -128,7 +138,8 @@ def main() -> None:
     p.add_argument("--corners", nargs=4, metavar="X,Y",
                    help="4 Wand-Ecken tl tr br bl; fehlt: gesamtes Bild")
     p.add_argument("--out", default="out")
-    p.add_argument("--yolo-weights", default="holds_yolo11s-seg.pt")
+    p.add_argument("--yolo-weights", default=None,
+                   help="default: automatische Suche nach holds_yolo11s-seg.pt / holds_yolo11s.pt")
     args = p.parse_args()
 
     img = cv2.imread(args.image)
@@ -143,8 +154,9 @@ def main() -> None:
 
     rect = rectify(img, corners)
 
-    holds = detect_yolo(rect, Path(args.yolo_weights))
-    detector = "yolo11s-seg" if holds is not None else "baseline-opencv"
+    weights = Path(args.yolo_weights) if args.yolo_weights else find_weights()
+    holds = detect_yolo(rect, weights) if weights else None
+    detector = f"yolo/{weights.name}" if holds is not None else "baseline-opencv"
     if holds is None:
         holds = detect_baseline(rect)
 

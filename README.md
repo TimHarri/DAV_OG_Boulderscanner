@@ -39,18 +39,25 @@ python train/train_yolo.py --data dataset_synthetic/data.yaml --epochs 1 --model
 
 **B) Echter Datensatz + eigene Korrekturen (empfohlen):**
 
+Der Roboflow-Datensatz ist **box-annotiert** (Bounding Boxes) -> daher
+`--task detect`; Boxen werden in der App zu klickbaren Rechtecken:
+
 ```bash
 pip install ultralytics roboflow
 export ROBOFLOW_API_KEY=...                # kostenloser Account auf roboflow.com
 python prepare_dataset.py --from-roboflow blackcreed/climbing-holds-and-volumes --out dataset_roboflow
 python export_training_data.py --out dataset_own      # eigene Web-UI-Korrekturen
 python prepare_dataset.py dataset_roboflow dataset_own --out dataset_merged
-python train/train_yolo.py --data dataset_merged/data.yaml --epochs 80
+python train/train_yolo.py --data dataset_merged/data.yaml --task detect --epochs 80
 ```
 
-Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0, ~60k Griffe);
-die eigenen Korrekturen aus dem Web-UI heben die Qualitaet auf die
-typische Hallen-Typik. GPU stark empfohlen (80 Epochen auf CPU = Stunden).
+Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0, ~1.7k Bilder,
+~60k Boxen); die eigenen Korrekturen aus dem Web-UI heben die Qualitaet auf
+die typische Hallen-Typik. GPU stark empfohlen (80 Epochen auf CPU = Stunden).
+
+`--task segment` (Polygon-Labels) funktioniert mit dem eigenen Export
+(`export_training_data.py`) bzw. geeigneten Datensaetzen; "ClimbInst" hat
+Polygon-Masken, aber nur nicht-kommerzielle Lizenz (CC BY-NC-SA 4.0).
 
 Benchmark-Hinweis: Qualitaet messen (Precision/Recall auf einem kleinen
 gelabelten Validierungsset), nicht fuehlen.
