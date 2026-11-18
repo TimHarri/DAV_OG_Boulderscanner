@@ -1,4 +1,7 @@
 numpy
 opencv-python-headless
-# optional, nur fuer YOLO-Detector:
+fastapi
+uvicorn[standard]
+python-multipart
+# optional, nur fuer YOLO-Detector / Training:
 # ultralytics
