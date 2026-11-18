@@ -33,6 +33,24 @@ python train/train_yolo.py --data dataset/data.yaml --epochs 80
 Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0);
 eigene Wandfotos + Nutzerkorrekturen ergaenzen.
 
+## Erkennung verbessern – Stufenplan
+
+Von der Baseline zu verlässlicher Erkennung, sortiert nach Wirkung:
+
+1. **YOLO11-seg feintunen** (größter Sprung): Roboflow-Datensatz „Climbing Holds and Volumes“ (CC BY 4.0) laden, mit `train/train_yolo.py` trainieren → `holds_yolo11s-seg.pt` wird automatisch genutzt.
+2. **Eigenes Daten sammeln:** Jede Korrektur im Web-UI wird über `python export_training_data.py --out dataset_own` zu YOLO-Trainingsdaten exportiert. 200–500 eigene Hallenfotos (verschiedene Wände, Licht, Winkel) heben die Qualität auf Hallen-Typik-Niveau.
+3. **Auflösung/Details:** `imgsz` hoch (960→1280) oder Tiling für große Wände (SAHI), da Griffe klein im Bild sind.
+4. **SAM2-Nacharbeit:** Detektions-Boxes → präzise Masken verfeinern lassen.
+5. **Farb-Klassifikation lernen:** Crop-Classifier (timm MobileNetV3) statt HSV-Heuristik, pro Halle feintunen.
+6. **Robustheit:** Personen maskieren (Pose-Skeleton), Blenden/Glanz begegnen (CLAHE), Volumen als eigene Klasse.
+7. **Messen statt fühlen:** kleines gelabeltes Validierungsset pro Halle; Erkennungsqualität (Precision/Recall) vor jedem Modellwechsel prüfen.
+
+## Testing
+
+- **API-Tests ohne Server:** `pytest -q` (nutzt synthetische Testwand, isoliertes Datenverzeichnis)
+- **CI:** GitHub Actions läuft bei jedem Push/PR (`.github/workflows/test.yml`)
+- **Lokal schnell starten:** `run.bat` (Windows, Doppelklick) bzw. `./run.sh` (macOS/Linux) – venv, Abhängigkeiten, Testwand und Server in einem Befehl
+
 ## P0-Spike (ohne Server, Datei-basiert)
 
 ## Setup
@@ -83,6 +101,9 @@ Grober Trainingspfad:
 - `app.py` – FastAPI-Backend (SQLite, statische Auslieferung des Web-UI)
 - `web/index.html` – Single-Page-Frontend (Wand scannen, Griffe klicken, Boulder speichern)
 - `pipeline.py` – Entzerrung + Detektion (Baseline / YOLO)
+- `tests/` – API-Tests über den FastAPI TestClient (`pytest -q`)
+- `export_training_data.py` – DB-Korrekturen → YOLO-Trainingsdatensatz
+- `run.bat` / `run.sh` – Ein-Klick-Start
 - `train/train_yolo.py` – YOLO11-seg Fine-Tuning
 - `make_test_wall.py` – synthetische Testwand
 

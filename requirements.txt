@@ -3,5 +3,8 @@ opencv-python-headless
 fastapi
 uvicorn[standard]
 python-multipart
+# fuer Tests/CI:
+pytest
+httpx
 # optional, nur fuer YOLO-Detector / Training:
 # ultralytics
