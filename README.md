@@ -39,16 +39,27 @@ python train/train_yolo.py --data dataset_synthetic/data.yaml --epochs 1 --model
 
 **B) Echter Datensatz + eigene Korrekturen (empfohlen):**
 
-Der Roboflow-Datensatz ist **box-annotiert** (Bounding Boxes) -> daher
-`--task detect`; Boxen werden in der App zu klickbaren Rechtecken:
+**Empfohlener Datensatz (Polygone, aktiv gepflegt, 4.926 Bilder in v22):**
+`climbtag/climbing-hold-detection` – Instance-Segmentation mit den gleichen
+Klassen (hold, volume) und nachweislich starken Modellen
+(mAP@50 91.3 %, Precision 93.1 %). Lizenz vor kommerzieller Nutzung auf
+der Dataset-Seite pruefen! Polygone -> `--task segment` (ohne Flag):
 
 ```bash
 pip install ultralytics roboflow
 export ROBOFLOW_API_KEY=...                # kostenloser Account auf roboflow.com
-python prepare_dataset.py --from-roboflow blackcreed/climbing-holds-and-volumes --out dataset_roboflow
+python prepare_dataset.py --from-roboflow climbtag/climbing-hold-detection-7uehq        --version 22 --format yolov11-seg --out dataset_climbtag
 python export_training_data.py --out dataset_own      # eigene Web-UI-Korrekturen
-python prepare_dataset.py dataset_roboflow dataset_own --out dataset_merged
-python train/train_yolo.py --data dataset_merged/data.yaml --task detect --epochs 80
+python prepare_dataset.py dataset_climbtag dataset_own --out dataset_merged
+python train/train_yolo.py --data dataset_merged/data.yaml --epochs 80
+```
+
+**Alternative (Boxen, CC BY 4.0):** `blackcreed/climbing-holds-and-volumes`
+-> `--task detect`; Boxen werden in der App zu klickbaren Rechtecken:
+
+```bash
+python prepare_dataset.py --from-roboflow blackcreed/climbing-holds-and-volumes --out dataset_roboflow
+python train/train_yolo.py --data dataset_roboflow/data.yaml --task detect --epochs 80
 ```
 
 Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0, ~1.7k Bilder,
