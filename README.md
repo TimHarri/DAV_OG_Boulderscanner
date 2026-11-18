@@ -1,7 +1,39 @@
-# Boulder P0-Spike
+# Boulderscanner
 
 Foto einer Boulderwand -> automatische Grifferkennung -> klickbare Wand im Browser ->
-eigenen Boulder setzen und als JSON exportieren.
+eigene Boulder setzen, speichern und teilen.
+
+## Schritt 2: MVP starten (Web-App)
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python make_test_wall.py                       # optional: Testwand erzeugen
+uvicorn app:app --reload                       # Server starten
+# Browser: http://localhost:8000/  (API-Docs: /docs)
+```
+
+Im Web-UI:
+1. Wand hochladen (Foto waehlen, Name, optional 4 Eckpunkte)
+2. Griffe anklicken -> Rollen zuweisen (Start/Hand/Fuss/Top), wird automatisch gespeichert
+3. "Boulder speichern" -> Problem landet in der Liste; Klick laedt es wieder
+
+API: `POST /api/walls` (Upload+Erkennung), `GET/PATCH .../holds`,
+`POST /api/walls/{id}/problems`, `GET /api/problems`. Datengrundlage: SQLite
+(`data/boulder.db`), spaeter gegen PostgreSQL tauschbar.
+
+## YOLO-Feintuning (echte Erkennungsqualitaet)
+
+```bash
+pip install ultralytics
+python train/train_yolo.py --data dataset/data.yaml --epochs 80
+# -> holds_yolo11s-seg.pt wird automatisch von app.py/pipeline.py genutzt
+```
+
+Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0);
+eigene Wandfotos + Nutzerkorrekturen ergaenzen.
+
+## P0-Spike (ohne Server, Datei-basiert)
 
 ## Setup
 
@@ -45,6 +77,14 @@ Grober Trainingspfad:
 1. Datensatz von https://universe.roboflow.com/ laden (YOLO-Format, Klassen: hold, volume).
 2. `yolo segment train data=<dataset>.yaml model=yolo11s-seg.pt epochs=80 imgsz=960`
 3. `runs/segment/train/weights/best.pt` -> `holds_yolo11s-seg.pt`
+
+## Struktur
+
+- `app.py` – FastAPI-Backend (SQLite, statische Auslieferung des Web-UI)
+- `web/index.html` – Single-Page-Frontend (Wand scannen, Griffe klicken, Boulder speichern)
+- `pipeline.py` – Entzerrung + Detektion (Baseline / YOLO)
+- `train/train_yolo.py` – YOLO11-seg Fine-Tuning
+- `make_test_wall.py` – synthetische Testwand
 
 ## Lizenz-Hinweis
 

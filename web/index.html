@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boulderscanner MVP</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #1b1b1f; color: #eee; margin: 0; display: flex; }
+  nav { width: 260px; min-width: 260px; background: #232329; padding: 16px; height: 100vh; box-sizing: border-box; overflow-y: auto; }
+  main { padding: 16px; width: 100%; }
+  h1 { font-size: 18px; margin: 0 0 14px; }
+  h2 { font-size: 14px; color: #9aa; text-transform: uppercase; letter-spacing: .05em; }
+  label, .hint { font-size: 12px; color: #aab; display: block; margin: 10px 0 4px; }
+  input, textarea { width: 100%; box-sizing: border-box; background: #17171b; color: #eee;
+    border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .primary { background: #e7542c; color: #fff; } .muted { background: #555; color: #fff; margin-left: 6px; }
+  ul { list-style: none; padding: 0; } li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  li:hover, li.active { background: #33333b; }
+  #status { font-size: 12px; color: #8f8; margin-top: 8px; min-height: 16px; }
+  canvas { max-width: 100%; border: 1px solid #555; cursor: crosshair; border-radius: 4px; }
+  .legend span { margin-right: 12px; font-size: 12px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+</style>
+</head>
+<body>
+<nav>
+  <h1>🧗 Boulderscanner</h1>
+  <h2>Neue Wand</h2>
+  <label>Foto (frontal)</label><input type="file" id="file" accept="image/*">
+  <label>Wand-Name</label><input type="text" id="wname" value="Neue Wand">
+  <label>4 Ecken "x1,y1 x2,y2 x3,y3 x4,y4" (tl tr br bl) — leer = ganzes Bild</label>
+  <input type="text" id="corners" placeholder="z. B. 120,80 1080,60 1100,1520 100,1550">
+  <div class="hint">Tipp: Eckpixel im Bildprogramm ablesen.</div>
+  <button class="primary" id="upload">Wand scannen</button>
+  <h2 style="margin-top:18px">Wände</h2><ul id="walls"></ul>
+  <h2 style="margin-top:18px">Boulder</h2><ul id="problems"></ul>
+  <div id="status"></div>
+</nav>
+<main>
+  <canvas id="cv" width="10" height="10" hidden></canvas>
+  <div id="empty" style="color:#778;padding:40px">Noch keine Wand geladen.<br>
+    Scanliste: Wand hochladen → unten links, dann Griffe anklicken.</div>
+  <div id="bar" hidden style="margin-top:10px">
+    <span class="legend">
+      <span><i class="dot" style="background:#00c8ff"></i>Start</span>
+      <span><i class="dot" style="background:#00c800"></i>Hand</span>
+      <span><i class="dot" style="background:#ff9600"></i>Fuß</span>
+      <span><i class="dot" style="background:#f00"></i>Top</span>
+    </span>
+    <button class="primary" id="save" style="margin-left:12px">Boulder speichern</button>
+    <button class="muted" id="clear">Markierungen löschen</button>
+    <span id="wallinfo" style="font-size:12px;color:#899"></span>
+  </div>
+</main>
+<script>
+const CYCLE = [null, "start", "hand", "foot", "top"];
+const COLOR = { start: "#00c8ff", hand: "#00c800", foot: "#ff9600", top: "#ff0000", null: "#fff" };
+let wall = null, img = new Image(), scale = 1, currentWallId = null;
+
+const $ = id => document.getElementById(id);
+const status = m => $("status").textContent = m;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { throw new Error((await r.json().catch(() => ({}))).detail || r.status); }
+  return r.json();
+}
+
+// ---- Wand scannen ----
+$("upload").onclick = async () => {
+  const f = $("file").files[0];
+  if (!f) return status("Bitte Foto wählen.");
+  const fd = new FormData();
+  fd.append("image", f);
+  fd.append("name", $("wname").value || "Wand");
+  fd.append("corners", $("corners").value.trim());
+  status("Erkenne Griffe …");
+  try {
+    wall = await api("/api/walls", { method: "POST", body: fd });
+    status(`OK: ${wall.holds.length} Griffe (${wall.detector})`);
+    await refreshLists();
+    loadWall(wall.id);
+  } catch (e) { status("Fehler: " + e.message); }
+};
+
+// ---- Wand laden ----
+async function loadWall(id) {
+  currentWallId = id;
+  wall = await api(`/api/walls/${id}`);
+  img = new Image();
+  img.onload = () => {
+    $("empty").hidden = true; $("cv").hidden = false; $("bar").hidden = false;
+    const cv = $("cv");
+    scale = Math.min(1, 760 / img.width, 900 / img.height);
+    cv.width = img.width * scale; cv.height = img.height * scale;
+    $("wallinfo").textContent = `Wand „${wall.name}“ · ${wall.holds.length} Griffe`;
+    draw();
+  };
+  img.src = "/data/" + wall.image;
+}
+
+function draw() {
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  for (const h of wall.holds) {
+    ctx.beginPath();
+    h.polygon.forEach(([x, y], i) => i ? ctx.lineTo(x * scale, y * scale) : ctx.moveTo(x * scale, y * scale));
+    ctx.closePath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = COLOR[h.role];
+    if (h.role) { ctx.fillStyle = COLOR[h.role] + "55"; ctx.fill(); }
+    ctx.stroke();
+    if (h.role) {
+      ctx.font = "11px sans-serif";
+      ctx.fillText(h.role, h.center[0] * scale + 6, h.center[1] * scale - 6);
+    }
+  }
+}
+
+// ---- Klick: Rolle zuweisen & persistieren ----
+$("cv").addEventListener("click", async e => {
+  const r = $("cv").getBoundingClientRect();
+  const x = (e.clientX - r.left) / scale, y = (e.clientY - r.top) / scale;
+  let best = null, bestD = 1e9;
+  for (const h of wall.holds) {
+    const d = (h.center[0] - x) ** 2 + (h.center[1] - y) ** 2;
+    if (d < bestD) { bestD = d; best = h; }
+  }
+  if (!best || bestD > 60 ** 2) return;
+  best.role = CYCLE[(CYCLE.indexOf(best.role) + 1) % CYCLE.length];
+  draw();
+  try {
+    await api(`/api/walls/${currentWallId}/holds/${best.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: best.role, color: best.color }),
+    });
+  } catch (err) { status("Hold speichern fehlgeschlagen: " + err.message); }
+});
+
+// ---- Boulder speichern ----
+$("save").onclick = async () => {
+  const moves = wall.holds.filter(h => h.role)
+    .sort((a, b) => CYCLE.indexOf(a.role) - CYCLE.indexOf(b.role))
+    .map((h, i) => ({ order: i + 1, hold_id: h.id, role: h.role, color: h.color }));
+  if (!moves.length) return status("Erst Griffe markieren.");
+  const name = prompt("Name des Boulders:", "Mein Boulder") || "unbenannt";
+  try {
+    const p = await api(`/api/walls/${currentWallId}/problems`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, moves }),
+    });
+    status(`Gespeichert: „${p.name}“ (${p.id})`);
+    refreshLists();
+  } catch (e) { status("Fehler: " + e.message); }
+};
+
+$("clear").onclick = async () => {
+  for (const h of wall.holds.filter(h => h.role)) {
+    h.role = null;
+    await api(`/api/walls/${currentWallId}/holds/${h.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: null }),
+    });
+  }
+  draw();
+};
+
+// ---- Listen ----
+async function refreshLists() {
+  (await api("/api/walls")).forEach((w, i) => {
+    if (i === $("walls").children.length) {
+      const li = document.createElement("li");
+      li.onclick = () => loadWall(w.id);
+      $("walls").appendChild(li);
+    }
+    $("walls").children[i].textContent = w.name;
+  });
+  const pl = $("problems"); pl.innerHTML = "";
+  for (const p of await api("/api/problems")) {
+    const li = document.createElement("li");
+    li.textContent = `📌 ${p.name} (${p.moves.length} Züge)`;
+    li.onclick = () => { loadWall(p.wall_id).then(() => {
+      for (const h of wall.holds) {
+        const m = p.moves.find(m => m.hold_id === h.id);
+        h.role = m ? m.role : null;
+      }
+      draw(); status(`Boulder „${p.name}“ geladen`);
+    }); };
+    pl.appendChild(li);
+  }
+}
+refreshLists();
+</script>
+</body>
+</html>
