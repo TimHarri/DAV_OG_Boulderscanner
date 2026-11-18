@@ -22,16 +22,38 @@ API: `POST /api/walls` (Upload+Erkennung), `GET/PATCH .../holds`,
 `POST /api/walls/{id}/problems`, `GET /api/problems`. Datengrundlage: SQLite
 (`data/boulder.db`), spaeter gegen PostgreSQL tauschbar.
 
-## YOLO-Feintuning (echte Erkennungsqualitaet)
+## Schritt 4: YOLO-Feintuning (echte Erkennungsqualitaet)
+
+Liegt eine Datei `holds_yolo11s-seg.pt` im Projektordner, nutzen `app.py`
+und `pipeline.py` sie automatisch (Detector-Anzeige im UI wechselt auf
+`yolo11s-seg`).
+
+**A) Pipeline offline smoke-testen (ohne Account, ~2 Minuten):**
 
 ```bash
 pip install ultralytics
-python train/train_yolo.py --data dataset/data.yaml --epochs 80
-# -> holds_yolo11s-seg.pt wird automatisch von app.py/pipeline.py genutzt
+python make_synthetic_dataset.py --n 40 --out dataset_synthetic
+python train/train_yolo.py --data dataset_synthetic/data.yaml --epochs 1 --model yolo11n-seg.pt
+# -> holds_yolo11s-seg.pt; App neu starten und Wand scannen
 ```
 
-Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0);
-eigene Wandfotos + Nutzerkorrekturen ergaenzen.
+**B) Echter Datensatz + eigene Korrekturen (empfohlen):**
+
+```bash
+pip install ultralytics roboflow
+export ROBOFLOW_API_KEY=...                # kostenloser Account auf roboflow.com
+python prepare_dataset.py --from-roboflow blackcreed/climbing-holds-and-volumes --out dataset_roboflow
+python export_training_data.py --out dataset_own      # eigene Web-UI-Korrekturen
+python prepare_dataset.py dataset_roboflow dataset_own --out dataset_merged
+python train/train_yolo.py --data dataset_merged/data.yaml --epochs 80
+```
+
+Datensatz: Roboflow "Climbing Holds and Volumes" (CC BY 4.0, ~60k Griffe);
+die eigenen Korrekturen aus dem Web-UI heben die Qualitaet auf die
+typische Hallen-Typik. GPU stark empfohlen (80 Epochen auf CPU = Stunden).
+
+Benchmark-Hinweis: Qualitaet messen (Precision/Recall auf einem kleinen
+gelabelten Validierungsset), nicht fuehlen.
 
 ## Erkennung verbessern – Stufenplan
 
@@ -105,6 +127,8 @@ Grober Trainingspfad:
 - `export_training_data.py` – DB-Korrekturen → YOLO-Trainingsdatensatz
 - `run.bat` / `run.sh` – Ein-Klick-Start
 - `train/train_yolo.py` – YOLO11-seg Fine-Tuning
+- `prepare_dataset.py` – Datensaetze vereinen (train/val-Split, data.yaml) + Roboflow-Download
+- `make_synthetic_dataset.py` – synthetischer YOLO-Datensatz zum Offline-Testen des Trainings
 - `make_test_wall.py` – synthetische Testwand
 
 ## Lizenz-Hinweis
