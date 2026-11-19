@@ -48,7 +48,8 @@ der Dataset-Seite pruefen! Polygone -> `--task segment` (ohne Flag):
 ```bash
 pip install ultralytics roboflow
 export ROBOFLOW_API_KEY=...                # kostenloser Account auf roboflow.com
-python prepare_dataset.py --from-roboflow climbtag/climbing-hold-detection-7uehq        --version 22 --format yolov11-seg --out dataset_climbtag
+# Instance-Segmentation-Projekt -> der yolov11-Export enthaelt Polygon-Labels:
+python prepare_dataset.py --from-roboflow climbtag/climbing-hold-detection-7uehq --version 22 --out dataset_climbtag
 python export_training_data.py --out dataset_own      # eigene Web-UI-Korrekturen
 python prepare_dataset.py dataset_climbtag dataset_own --out dataset_merged
 python train/train_yolo.py --data dataset_merged/data.yaml --epochs 80

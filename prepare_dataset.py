@@ -72,8 +72,13 @@ def merge(sources: list[str], out: str, val_fraction: float = VAL_FRACTION) -> d
 
 def download_roboflow(slug: str, out: str, version: int | None = None,
                       fmt: str = "yolov11") -> None:
-    """Laedt einen Universe-Datensatz. fmt: 'yolov11' (Boxen) oder
-    'yolov11-seg' (Polygone, fuer --task segment)."""
+    """Laedt einen Universe-Datensatz im YOLO-Exportformat.
+
+    Achtung: Roboflow kennt keine 'seg'-Formatsuffixe - bei
+    Instance-Segmentation-Projekten enthaelt der 'yolov11'-Export
+    automatisch Polygon-Labels, bei Box-Projekten Bounding-Boxes.
+    Der Trainingsmodus (--task) wird darum erst nach dem Download passend
+    zum Label-Inhalt gewaehlt."""
     try:
         from roboflow import Roboflow
     except ImportError:
@@ -100,9 +105,9 @@ if __name__ == "__main__":
                         "kostenlosen Account, dazu ROBOFLOW_API_KEY)")
     p.add_argument("--version", type=int, default=None,
                    help="Roboflow-Datensatz-Version (ohne: neueste)")
-    p.add_argument("--format", default="yolov11", choices=["yolov11", "yolov11-seg"],
-                   help="Exportformat: yolov11 = Boxen (--task detect), "
-                        "yolov11-seg = Polygone (--task segment)")
+    p.add_argument("--format", default="yolov11", choices=["yolov11"],
+                   help="YOLO-Exportformat (Instance-Segmentation-Projekte "
+                        "liefern automatisch Polygon-Labels)")
     args = p.parse_args()
 
     if args.from_roboflow:
